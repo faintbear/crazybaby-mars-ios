@@ -1,0 +1,10 @@
+.DS_Store
+Local.xcconfig
+**/xcuserdata/
+DerivedData/
+build/
+*.ipa
+*.mobileprovision
+*.p12
+*.apk
+*.json

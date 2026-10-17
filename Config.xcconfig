@@ -1,0 +1,2 @@
+MARS_BUNDLE_ID = com.example.marscontrol
+#include? "Local.xcconfig"

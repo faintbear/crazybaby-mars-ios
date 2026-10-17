@@ -1,0 +1,3 @@
+// Copy to Local.xcconfig and enter your own signing settings.
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+MARS_BUNDLE_ID = com.yourname.marscontrol
