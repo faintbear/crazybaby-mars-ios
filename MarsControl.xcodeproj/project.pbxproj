@@ -9,12 +9,14 @@
 /* Begin PBXBuildFile section */
 		2CEDE238B307DB7DAFDB6AF5 /* MarsProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B8905489AC66879C744479 /* MarsProtocol.swift */; };
 		47629607E9628A5A5396DBD1 /* MarsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1B5577C11088A9033B1DCE0 /* MarsController.swift */; };
+		A335497B14DE59E3DD28ECB5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3F34C07BE81C6935FB3716E0 /* Assets.xcassets */; };
 		D896DBE83DAC98EA560AB5B7 /* MarsInterface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4996D5A23FE2BACC0AA08DEF /* MarsInterface.swift */; };
 		ED9C18B83D026612EB901E30 /* MarsControlApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 725C62DEB3D97DFA0724E986 /* MarsControlApp.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		21B8905489AC66879C744479 /* MarsProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarsProtocol.swift; sourceTree = "<group>"; };
+		3F34C07BE81C6935FB3716E0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4996D5A23FE2BACC0AA08DEF /* MarsInterface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarsInterface.swift; sourceTree = "<group>"; };
 		508E24BA7B9E99B2BF6C6FBC /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		725C62DEB3D97DFA0724E986 /* MarsControlApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarsControlApp.swift; sourceTree = "<group>"; };
@@ -44,6 +46,7 @@
 		A4D2396201F94F8FC1594F68 /* MarsControl */ = {
 			isa = PBXGroup;
 			children = (
+				3F34C07BE81C6935FB3716E0 /* Assets.xcassets */,
 				A2D5439CB2B3A6FA87ABF10E /* Info.plist */,
 				725C62DEB3D97DFA0724E986 /* MarsControlApp.swift */,
 				B1B5577C11088A9033B1DCE0 /* MarsController.swift */,
@@ -70,6 +73,7 @@
 			buildConfigurationList = 6BD2DF90060A0CB30AF88B8F /* Build configuration list for PBXNativeTarget "MarsControl" */;
 			buildPhases = (
 				717B899EE55540A1D587098D /* Sources */,
+				B325870457B96EC492306A5A /* Resources */,
 			);
 			buildRules = (
 			);
@@ -114,6 +118,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		B325870457B96EC492306A5A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A335497B14DE59E3DD28ECB5 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		717B899EE55540A1D587098D /* Sources */ = {

@@ -1,5 +1,7 @@
 # Mars Control for iOS
 
+<img src="MarsControl/Assets.xcassets/AppIcon.appiconset/AppIcon.png" width="128" alt="Mars Control 非官方 App 图标">
+
 让 Mars 再次听你指挥。
 
 为 Mars by crazybaby 磁悬浮蓝牙音箱编写的非官方 iOS 开源控制 App，使用 SwiftUI 和 CoreBluetooth，直接通过本地蓝牙控制音箱，无需账户或云服务。这是独立重建的兼容实现，并非官方 iOS App 源码。
@@ -70,3 +72,5 @@ xcodegen generate --spec project.yml
 项目代码使用 [MIT License](LICENSE)。Crazybaby、Mars 名称与商标归其权利人所有，项目与原厂没有隶属关系。
 
 产品照片由项目发起者提供用于介绍音箱，图片权利归原权利人所有，不包含在代码的 MIT 授权范围内。产品背景阅读材料署名见上方 TIRIAS Research 文章链接。
+
+图标为独立绘制的社区版本：以薄荷绿开口圆环与悬浮圆点呼应音箱，并使用 UNOFFICIAL 标识区别于官方 App。

@@ -7,4 +7,4 @@ build/
 *.mobileprovision
 *.p12
 *.apk
-*.json
+mars-control.json
