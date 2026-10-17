@@ -1,50 +1,52 @@
+<p align="right">English | <a href="README.zh-CN.md">简体中文</a></p>
+
 # Mars Control for iOS
 
-<img src="MarsControl/Assets.xcassets/AppIcon.appiconset/AppIcon.png" width="128" alt="Mars Control 非官方 App 图标">
+<img src="MarsControl/Assets.xcassets/AppIcon.appiconset/AppIcon.png" width="128" alt="Unofficial Mars Control app icon">
 
-让 Mars 再次听你指挥。
+Put Mars back in your hands.
 
-为 Mars by crazybaby 磁悬浮蓝牙音箱编写的非官方 iOS 开源控制 App，使用 SwiftUI 和 CoreBluetooth，直接通过本地蓝牙控制音箱，无需账户或云服务。这是独立重建的兼容实现，并非官方 iOS App 源码。
+An unofficial, open-source iOS controller for the Mars by crazybaby levitating Bluetooth speaker. Built with SwiftUI and CoreBluetooth, it controls the speaker locally over Bluetooth, without an account or cloud service. This is an independently rebuilt compatible app, not the original official iOS app source code.
 
-![Mars 磁悬浮蓝牙音箱](docs/images/mars-speaker.png)
+![Mars levitating Bluetooth speaker](docs/images/mars-speaker.png)
 
-## 关于 Mars
+## About Mars
 
-Mars 把飞碟形全频扬声器悬浮在圆柱形低音基座上，将蓝牙音乐、磁悬浮和环形灯光结合在一起。飞碟也可以离开基座播放音乐，放回基座充电。想了解这款音箱，可以阅读 Paul Teich 为 TIRIAS Research 撰写的 [Mars By Crazybaby Is Bluetooth Audio Magnetism](https://medium.com/@TIRIAS_Research/mars-by-crazybaby-is-bluetooth-audio-magnetism-467e7ad891e)。
+Mars combines a UFO-shaped, levitating full-range speaker with a cylindrical subwoofer base, Bluetooth audio, and a ring of lights. The floating speaker can also play music away from its base and returns to the base for charging. For a closer look at the product, read Paul Teich’s article for TIRIAS Research: [Mars By Crazybaby Is Bluetooth Audio Magnetism](https://medium.com/@TIRIAS_Research/mars-by-crazybaby-is-bluetooth-audio-magnetism-467e7ad891e).
 
-当旧版控制 App 无法获取时，这个项目提供一个可以自行构建、维护和改进的 iPhone 控制器。
+When the original control app is no longer available, this project offers an iPhone controller you can build, maintain, and improve yourself.
 
-## 支持与验证
+## Features and verification
 
-以下验证来自一台 Mars 音箱与一台 iPhone 的实际使用，不代表所有硬件或固件版本均已覆盖。
+Verification was performed with one Mars speaker and one iPhone. It does not cover every hardware or firmware version.
 
-| 功能 | 当前支持 | 已完成的验证 |
+| Feature | Current support | Verification completed |
 | --- | --- | --- |
-| 蓝牙连接 | 扫描、连接、断开、记住设备 | 已在 iPhone 上建立 BLE 控制连接并收取设备响应 |
-| 读取设备状态 | 悬浮、灯效、亮度、音量、EQ | 已读取音箱返回的状态 |
-| 悬浮控制 | 升起、降落；按钮与上下拖动操作 | 已实际观察到飞碟下降与重新升起 |
-| 灯效切换 | 4 个模式入口（0–3） | 已完成模式切换、回读及肉眼观察；未逐一命名所有效果 |
-| 灯光亮度 | 0–15 调节与百分比显示 | 已回读设置值，实际观察到最暗及亮度变化 |
-| 音量调节 | 0–16 范围，读取当前档位 | 已写入低音量并回读；恢复值在重连后读回确认。未逐档测量响度 |
-| EQ 预设 | 5 个预设入口（0–4） | 已完成 2 → 0 → 2 切换与状态回读；未逐一试听全部预设 |
-| 设备改名 | 最多 17 个 UTF-8 字节；重启后人工核对 | 已成功更改名称，重启后由使用者确认；自动名称回读存在截断限制 |
+| Bluetooth connection | Scan, connect, disconnect, and remember a device | Established a BLE control connection on iPhone and received device responses |
+| Device status | Read levitation, light mode, brightness, volume, and EQ | Received actual status values from the speaker |
+| Levitation control | Raise and lower using buttons or vertical dragging | Physically observed the speaker lowering and rising again |
+| Light modes | Four mode selections (0–3) | Switched modes, read back values, and observed visual changes; individual effects have not all been named |
+| Light brightness | Levels 0–15 with a percentage display | Read back settings and observed the lowest brightness and brightness changes |
+| Volume control | Range 0–16 and current-level readout | Wrote and read back a low volume setting; confirmed the restored value after reconnecting. Loudness has not been measured at every level |
+| EQ presets | Five preset selections (0–4) | Switched 2 → 0 → 2 and confirmed status readback; not every preset has been individually auditioned |
+| Device name | Up to 17 UTF-8 bytes, with manual verification after restarting | Successfully changed the name and received user confirmation after a restart; automatic name readback can be truncated |
 
-深色界面包含设备列表、功能详情、连接状态、操作反馈及播放帮助。断开连接或操作进行中会禁用设置控件；设置超时不会自动重复发送。
+The dark interface includes a device list, feature pages, connection status, operation feedback, and playback help. Settings are disabled while disconnected or while an operation is in progress. Timed-out settings are not automatically resent.
 
-上述“实物验证”针对控制能力。拖动手势等界面交互并未全部完成自动化测试。EQ 的自定义频段编辑尚未实现。
+Physical verification above concerns the control capabilities. Interface interactions such as dragging have not all undergone automated testing. Editing custom EQ bands is not implemented.
 
-## 使用
+## Usage
 
-1. 开启 Mars 飞碟。需要升降时，给基座接通电源，并正确放置飞碟。
-2. 在 App 中进入设备页面，允许蓝牙权限并等待连接。
-3. 选择悬浮、灯光、声音或名称设置。
-4. 播放音乐时，在 iPhone 系统蓝牙设置中连接 Mars，并使用你喜欢的音乐 App。音乐音频连接与本 App 的 BLE 控制连接分别工作。
+1. Turn on the Mars floating speaker. To raise or lower it, power on the base and position the speaker correctly.
+2. Open the device page in the app, grant Bluetooth permission, and wait for the connection.
+3. Choose levitation, lighting, sound, or device-name settings.
+4. For music playback, connect Mars in the iPhone’s system Bluetooth settings and use your preferred music app. The audio connection and this app’s BLE control connection work separately.
 
-改名后重启飞碟，在系统蓝牙设置核对名称，再回 App 确认。BLE 广播名称可能仍保持原名称。
+After renaming, restart the floating speaker, verify its name in system Bluetooth settings, and confirm it in the app. Its BLE advertising name may remain unchanged.
 
-## 构建
+## Build
 
-需要支持 iOS 17 或更新系统的 Xcode、iPhone 和 Apple 开发签名。蓝牙硬件功能需要真机。
+You need Xcode with support for iOS 17 or later, an iPhone, and Apple development signing. Bluetooth hardware features require a physical device.
 
 ```sh
 git clone https://github.com/faintbear/crazybaby-mars-ios.git
@@ -53,24 +55,24 @@ cp Local.xcconfig.example Local.xcconfig
 open MarsControl.xcodeproj
 ```
 
-在 `Local.xcconfig` 填写自己的 `DEVELOPMENT_TEAM` 和唯一的 `MARS_BUNDLE_ID`，在 Xcode 选择 iPhone 后运行。也可以在 Xcode 的 Signing & Capabilities 中设置个人团队。个人签名的有效期与安装限制由 Apple 决定。
+Set your own `DEVELOPMENT_TEAM` and a unique `MARS_BUNDLE_ID` in `Local.xcconfig`, select your iPhone in Xcode, and run. You can also select your personal team under Signing & Capabilities in Xcode. Personal signing validity and installation limits are determined by Apple.
 
-已包含 Xcode 工程，无需安装第三方运行依赖。如修改工程结构，可用 [XcodeGen](https://github.com/yonaskolb/XcodeGen) 重新生成：
+The Xcode project is included, and there are no third-party runtime dependencies. If you change the project structure, regenerate it with [XcodeGen](https://github.com/yonaskolb/XcodeGen):
 
 ```sh
 xcodegen generate --spec project.yml
 ```
 
-## 范围
+## Scope
 
-目前专注单台 Mars 的主要控制功能。不提供固件升级、自动音量、Double Up 双机组对或 Multipoint 管理，也不内置音乐播放器。
+The app focuses on the main controls for a single Mars speaker. Firmware updates, automatic volume, Double Up pairing, Multipoint management, and a built-in music player are not provided.
 
-截至整理本项目时，使用 Crazybaby、Mars、Swift 和 Objective-C 等关键词检索，未找到可直接使用的 Mars iOS 开源控制器；这不构成对所有公开或历史项目的穷尽判断。
+While preparing this project, searches using Crazybaby, Mars, Swift, and Objective-C did not uncover a ready-to-use open-source Mars iOS controller. This is not an exhaustive claim about all public or historical projects.
 
-## 许可证与致谢
+## License and credits
 
-项目代码使用 [MIT License](LICENSE)。Crazybaby、Mars 名称与商标归其权利人所有，项目与原厂没有隶属关系。
+The project code is available under the [MIT License](LICENSE). Crazybaby and Mars names and trademarks belong to their respective owners. This project is not affiliated with the manufacturer.
 
-产品照片由项目发起者提供用于介绍音箱，图片权利归原权利人所有，不包含在代码的 MIT 授权范围内。产品背景阅读材料署名见上方 TIRIAS Research 文章链接。
+The product photograph was supplied by the project initiator to illustrate the speaker. Image rights remain with the original rights holder and are excluded from the code’s MIT license. The product background article is credited through the TIRIAS Research link above.
 
-图标为独立绘制的社区版本：以薄荷绿开口圆环与悬浮圆点呼应音箱，并使用 UNOFFICIAL 标识区别于官方 App。
+The app icon is an independently drawn community version: a mint open ring and a floating dot evoke the speaker, while the UNOFFICIAL label distinguishes it from the official app.
