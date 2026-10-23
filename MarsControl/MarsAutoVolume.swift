@@ -33,6 +33,12 @@ enum MarsProximitySignal {
         guard (-110 ... -10).contains(rssi) else { return nil }
         return rssi
     }
+    static func rejectionMessage(_ payload: [UInt8]) -> String {
+        guard payload.count == 2 else { return "信号响应长度 \(payload.count) 字节，与原版预期不同，已停止检测" }
+        let value = Int(Int8(bitPattern: payload[1]))
+        if value == 0 { return "音箱返回信号值 0，尚未取得可用信号；请确认音频连接与播放后重试" }
+        return "音箱返回信号值 \(value)，超出当前验证范围，已停止自动音量"
+    }
     static func boundedTarget(_ suggestion: Int, current: Int, maximum: Int) -> Int? {
         // Never unmute, and never turn a single automatic update into a large jump.
         guard (1...16).contains(current), (1...15).contains(maximum) else { return nil }

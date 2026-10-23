@@ -8,3 +8,5 @@ build/
 *.p12
 *.apk
 mars-control.json
+
+mars-proximity.json

@@ -49,6 +49,11 @@ The original recurrence is combined with a user-selected ceiling (1–15), at mo
 
 Protocol and algorithm checks pass, but this feature has not yet been verified on a physical Mars speaker. In-flight commands can still complete after stopping. Test at a low listening level first.
 
+
+### Signal diagnostics in 0.5.1
+
+The app distinguishes received responses from valid samples. A response of `00 00` is shown as a reported value of 0 and keeps automatic volume disabled; it is not a payload-length error. “信号检测详情” shows the latest payload and allows manual export of up to 12 recent signal responses, stored locally without device names or identifiers. Nothing is uploaded automatically. Whether zero depends on the audio connection or the BLE control path is still under investigation.
+
 ## New in 0.4.0: experimental controls
 
 Rebuilt from the Android 3.0.11 control behavior. These additions have passed local protocol checks and compilation, but have not yet been verified on a physical Mars speaker:

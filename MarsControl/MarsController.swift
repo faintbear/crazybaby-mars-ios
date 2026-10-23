@@ -15,11 +15,32 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
     @Published private(set) var autoVolumeMonitoring = false
     @Published private(set) var autoVolumeEnabled = false
     @Published private(set) var proximityRSSI: Int?
+    @Published private(set) var proximityReportedRSSI: Int?
+    @Published private(set) var proximityResponseCount = 0
     @Published private(set) var proximityRaw = "尚未读取"
     @Published private(set) var proximitySamples = 0
     @Published private(set) var proximitySuggestion: Int?
     @Published private(set) var proximityStatus = "先进行只读信号检测，不会改变音量"
     @Published private(set) var autoVolumeMaximum = 8
+    @Published private(set) var proximityLastFrame = "尚未收到信号响应"
+    private var proximityDiagnostics: [[String: Any]] = []
+    var proximityReportURL: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("mars-proximity.json")
+    }
+    private func recordProximityFrame(_ frame: MarsFrame) {
+        let payload = MarsWire.unescape(frame.payload)
+        proximityResponseCount += 1
+        proximityReportedRSSI = payload.count == 2 ? Int(Int8(bitPattern: payload[1])) : nil
+        proximityLastFrame = "长度 \(payload.count)：" + Data(payload).marsHex
+        proximityDiagnostics.append(["time": ISO8601DateFormatter().string(from: Date()),
+            "sequence": Int(frame.sequence), "body": Data(frame.body).marsHex,
+            "payload": Data(payload).marsHex, "signedBytes": payload.map { Int(Int8(bitPattern: $0)) }])
+        if proximityDiagnostics.count > 12 { proximityDiagnostics.removeFirst(proximityDiagnostics.count - 12) }
+        let report: [String: Any] = ["version": 1, "command": 23, "frames": proximityDiagnostics]
+        if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: proximityReportURL, options: .atomic)
+        }
+    }
     private var autoVolumeTimer: Timer?
     private var proximityAlgorithm = MarsAutoVolumeAlgorithm()
     private var proximityAdjustmentDue = false
@@ -167,6 +188,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         stopAutoVolume("开始只读信号检测")
         proximityRSSI = nil; proximitySamples = 0; proximitySuggestion = nil
         proximityRaw = "等待音箱返回"; lastProximitySample = nil
+        proximityReportedRSSI = nil; proximityResponseCount = 0; proximityLastFrame = "等待音箱返回"
         proximityAlgorithm = MarsAutoVolumeAlgorithm()
         proximityAdjustmentDue = false
         autoVolumeMaximum = min(8, max(1, value(4) ?? 8))
@@ -210,7 +232,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
     private func consumeProximity(_ payload: [UInt8]) {
         proximityRaw = Data(payload).marsHex
         guard let rssi = MarsProximitySignal.decode(payload) else {
-            stopAutoVolume("音箱信号返回不符合预期，未启用或已停止自动音量")
+            stopAutoVolume(MarsProximitySignal.rejectionMessage(payload))
             return
         }
         proximityRSSI = rssi; proximitySamples += 1; lastProximitySample = Date()
@@ -231,6 +253,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
     private func clearAdvancedState() {
         stopAutoVolume("设备状态已重置，请重新检测并手动开启自动音量")
         proximityRSSI = nil; proximitySamples = 0; proximitySuggestion = nil; proximityRaw = "尚未读取"
+        proximityReportedRSSI = nil; proximityResponseCount = 0; proximityLastFrame = "尚未收到信号响应"
 
         for command: UInt8 in [8, 18, 19, 20, 21, 26, 27] { values.removeValue(forKey: command) }
         connectedEntries.removeAll(); historyEntries.removeAll(); queryIssues.removeAll()
@@ -376,11 +399,19 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
             if seenResponses.count > 128 { seenResponses.removeAll(); seenResponses.insert(fingerprint) }
             guard frame.operation == 2, let command = frame.command else { continue }
             let payload = [8, 18, 19, 20, 21, 23, 26, 27].contains(Int(command)) ? MarsWire.unescape(frame.payload) : frame.payload
+            if command == 23 { recordProximityFrame(frame) }
             guard validResponse(command, payload) else {
                 queryIssues[command] = "设备返回格式无法识别"
                 if command == 23 {
                     proximityRaw = Data(payload).marsHex
-                    stopAutoVolume("音箱信号返回不符合预期，已停止检测")
+                    // A rejected response is still a completed query, not a timeout.
+                    if pending?.command == 23 && pending?.payload == nil {
+                        timer?.invalidate(); pending = nil
+                    }
+                    let reason = MarsProximitySignal.rejectionMessage(payload)
+                    stopAutoVolume(reason)
+                    queryIssues[23] = reason
+                    sendNext()
                 }
                 if command == 4 && pending?.automatic == true { stopAutoVolume("音量返回无效，已停止自动音量") }
                 continue
