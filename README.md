@@ -35,6 +35,20 @@ The dark interface includes a device list, feature pages, connection status, ope
 
 Physical verification above concerns the control capabilities. Interface interactions such as dragging have not all undergone automated testing. Editing custom EQ bands is not implemented.
 
+## New in 0.5.0: experimental Proximity Volume
+
+Auto Volume is reconstructed from the complete Android 2.1.0 implementation. That version polls the speaker’s RSSI command (`0x17`) roughly every two seconds and calculates volume after every three samples. The complete automatic path was not found in the inspected Android 3.0.11 Java code, despite its retained page name and request enumeration.
+
+1. Open “自动音量” and start the read-only signal check. Move your iPhone closer to and farther from Mars while watching the reported signal.
+2. After at least three valid samples and a valid nonzero volume response, select a maximum level and explicitly enable automatic volume. Three samples validate response format, not distance accuracy.
+3. Keep the app in the foreground. Manual device controls, disconnects, timeouts, invalid responses, inconsistent setting readbacks, or leaving the foreground stop the feature. It never resumes automatically or unmutes the speaker.
+
+The app uses the speaker-returned signed signal byte, not the iPhone’s own BLE RSSI API. It accepts the expected two-byte payload only, with the second byte in a plausible −110 to −10 dBm range. Devices that do not provide this response cannot enable the feature.
+
+The original recurrence is combined with a user-selected ceiling (1–15), at most one upward step per adjustment, and gradual decreases unless a lower ceiling requires a larger drop. The initial ceiling is no higher than the currently read volume or level 8. No cloud service, microphone, location permission, or persistent background execution is used. Phone position is only a proxy for listener position; this does not guarantee constant perceived loudness.
+
+Protocol and algorithm checks pass, but this feature has not yet been verified on a physical Mars speaker. In-flight commands can still complete after stopping. Test at a low listening level first.
+
 ## New in 0.4.0: experimental controls
 
 Rebuilt from the Android 3.0.11 control behavior. These additions have passed local protocol checks and compilation, but have not yet been verified on a physical Mars speaker:
@@ -47,7 +61,7 @@ Rebuilt from the Android 3.0.11 control behavior. These additions have passed lo
 
 Open “提示音与待机” or “连接设备” and press the read button first. Unsupported or missing responses leave advanced settings unavailable. Controls use the Android version condition as a compatibility guard, not as proof of hardware support. Connection-list refresh clears old entries; incomplete results are shown with their returned total and any read error.
 
-Automatic distance-based volume, RGB color controls, Wi-Fi grouping, and power-saving controls for other speaker models are not included.
+RGB color controls, Wi-Fi grouping, and power-saving controls for other speaker models are not included.
 
 ## Usage
 
@@ -79,7 +93,7 @@ xcodegen generate --spec project.yml
 
 ## Scope
 
-The app focuses on the main controls for a single Mars speaker. Firmware updates, automatic volume, Double Up pairing, Multipoint management, and a built-in music player are not provided.
+The app focuses on the main controls for a single Mars speaker. Firmware updates, Double Up pairing, Multipoint connection management, and a built-in music player are not provided. Connection information is read-only; Proximity Volume is experimental.
 
 While preparing this project, searches using Crazybaby, Mars, Swift, and Objective-C did not uncover a ready-to-use open-source Mars iOS controller. This is not an exhaustive claim about all public or historical projects.
 

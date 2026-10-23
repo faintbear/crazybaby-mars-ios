@@ -12,6 +12,24 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
     var mcuVersion: MarsMCUVersion? { MarsMCUVersion(values[8]) }
     var promptSounds: MarsPromptSounds? { MarsPromptSounds(values[26]) }
     var canSetAdvancedControls: Bool { connected && !busy && mcuVersion?.supportsAdvancedControls == true }
+    @Published private(set) var autoVolumeMonitoring = false
+    @Published private(set) var autoVolumeEnabled = false
+    @Published private(set) var proximityRSSI: Int?
+    @Published private(set) var proximityRaw = "尚未读取"
+    @Published private(set) var proximitySamples = 0
+    @Published private(set) var proximitySuggestion: Int?
+    @Published private(set) var proximityStatus = "先进行只读信号检测，不会改变音量"
+    @Published private(set) var autoVolumeMaximum = 8
+    private var autoVolumeTimer: Timer?
+    private var proximityAlgorithm = MarsAutoVolumeAlgorithm()
+    private var proximityAdjustmentDue = false
+    private var lastProximitySample: Date?
+    private var appActive = false
+    var canEnableAutoVolume: Bool {
+        appActive && connected && !busy && autoVolumeMonitoring && proximitySamples >= 3 &&
+        (lastProximitySample.map { Date().timeIntervalSince($0) < 6 } ?? false) &&
+        (value(4).map { (1...16).contains($0) } ?? false)
+    }
     @Published var lastConfirmed = "尚未读取"
     @Published private(set) var displayName = UserDefaults.standard.string(forKey: "marsDisplayName") ?? "Mars Speaker"
     @Published var feedback: MarsFeedback?
@@ -35,6 +53,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         let sequence: UInt8
         let expected: [UInt8]?
         let queryArguments: [UInt8]
+        let automatic: Bool
     }
     override init() { super.init() }
     func connect() {
@@ -131,6 +150,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         sendNext()
     }
     func set(_ command: UInt8, _ value: UInt8) {
+        if autoVolumeMonitoring { stopAutoVolume("手动操作设备，自动音量已停止") }
         guard connected, !busy else { return }
         let range: ClosedRange<UInt8>?
         switch command { case 3: range = 0...4; case 4: range = 0...16; case 25: range = 0...15; case 13: range = 0...1; case 24: range = 0...3; default: range = nil }
@@ -138,11 +158,85 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         feedback = nil
         enqueue(command, payload: [value]); sendNext()
     }
+    func setAppActive(_ active: Bool) {
+        appActive = active
+        if !active { stopAutoVolume("已离开前台，自动音量与检测均已停止") }
+    }
+    func startProximityMonitoring() {
+        guard appActive, connected, !busy else { return }
+        stopAutoVolume("开始只读信号检测")
+        proximityRSSI = nil; proximitySamples = 0; proximitySuggestion = nil
+        proximityRaw = "等待音箱返回"; lastProximitySample = nil
+        proximityAlgorithm = MarsAutoVolumeAlgorithm()
+        proximityAdjustmentDue = false
+        autoVolumeMaximum = min(8, max(1, value(4) ?? 8))
+        autoVolumeMonitoring = true
+        proximityStatus = "只读检测中，请拿着 iPhone 走近、走远观察信号"
+        autoVolumeTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.pollProximity() }
+        pollProximity()
+    }
+    func enableAutoVolume() {
+        guard canEnableAutoVolume else { return }
+        autoVolumeEnabled = true
+        proximityAlgorithm = MarsAutoVolumeAlgorithm()
+        proximityAdjustmentDue = false
+        proximitySuggestion = nil
+        proximityStatus = "自动音量已开启；前台运行，每次最多提高一档"
+    }
+    func setAutoVolumeMaximum(_ maximum: Int) {
+        guard (1...15).contains(maximum) else { return }
+        autoVolumeMaximum = maximum
+    }
+    func stopAutoVolume(_ reason: String = "已停止自动音量与信号检测") {
+        autoVolumeTimer?.invalidate(); autoVolumeTimer = nil
+        autoVolumeEnabled = false; autoVolumeMonitoring = false
+        proximityAdjustmentDue = false
+        lastProximitySample = nil
+        queue.removeAll { $0.automatic && $0.expected == nil }
+        if pending == nil && queue.isEmpty { busy = false; activeCommand = nil }
+        proximityStatus = reason
+    }
+    private func pollProximity() {
+        guard appActive, connected, autoVolumeMonitoring else { stopAutoVolume(); return }
+        if let sample = lastProximitySample, Date().timeIntervalSince(sample) > 8 {
+            stopAutoVolume("信号更新中断，已停止；不会自动恢复")
+            return
+        }
+        guard !busy else { return }
+        enqueue(23, payload: nil, automatic: true)
+        enqueue(4, payload: nil, automatic: true)
+        sendNext()
+    }
+    private func consumeProximity(_ payload: [UInt8]) {
+        proximityRaw = Data(payload).marsHex
+        guard let rssi = MarsProximitySignal.decode(payload) else {
+            stopAutoVolume("音箱信号返回不符合预期，未启用或已停止自动音量")
+            return
+        }
+        proximityRSSI = rssi; proximitySamples += 1; lastProximitySample = Date()
+        _ = proximityAlgorithm.consume(rssi: rssi)
+        proximitySuggestion = proximityAlgorithm.latestTarget
+        proximityAdjustmentDue = proximityAlgorithm.adjustmentDue
+    }
+    private func applyAutomaticVolumeIfNeeded() {
+        guard autoVolumeMonitoring, autoVolumeEnabled, appActive,
+              let sample = lastProximitySample, Date().timeIntervalSince(sample) < 6,
+              let current = value(4) else { return }
+        guard current > 0 else { stopAutoVolume("音箱已静音，自动音量停止，不会自动取消静音"); return }
+        guard proximityAdjustmentDue, let suggestion = proximitySuggestion else { return }
+        proximityAdjustmentDue = false
+        guard let target = MarsProximitySignal.boundedTarget(suggestion, current: current, maximum: autoVolumeMaximum), target != current else { return }
+        enqueue(4, payload: [UInt8(target)], automatic: true)
+    }
     private func clearAdvancedState() {
+        stopAutoVolume("设备状态已重置，请重新检测并手动开启自动音量")
+        proximityRSSI = nil; proximitySamples = 0; proximitySuggestion = nil; proximityRaw = "尚未读取"
+
         for command: UInt8 in [8, 18, 19, 20, 21, 26, 27] { values.removeValue(forKey: command) }
         connectedEntries.removeAll(); historyEntries.removeAll(); queryIssues.removeAll()
     }
     func readAdvancedSettings() {
+        if autoVolumeMonitoring { stopAutoVolume("操作其他设置，自动音量已停止") }
         guard connected, !busy else { return }
         for command: UInt8 in [8, 26, 27] {
             values.removeValue(forKey: command); queryIssues.removeValue(forKey: command)
@@ -151,6 +245,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         sendNext()
     }
     func readConnectionLists() {
+        if autoVolumeMonitoring { stopAutoVolume("操作其他设置，自动音量已停止") }
         guard connected, !busy else { return }
         connectedEntries.removeAll(); historyEntries.removeAll()
         for command: UInt8 in [18, 19, 20, 21] {
@@ -159,6 +254,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         enqueue(18, payload: nil); enqueue(20, payload: nil); sendNext()
     }
     func setPromptSound(levitation: Bool? = nil, power: Bool? = nil) {
+        if autoVolumeMonitoring { stopAutoVolume("操作其他设置，自动音量已停止") }
         guard canSetAdvancedControls, var sounds = promptSounds else { return }
         if let levitation { sounds.levitation = levitation }
         if let power { sounds.power = power }
@@ -166,6 +262,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         feedback = nil; enqueue(26, payload: [sounds.encoded]); sendNext()
     }
     func setStandby(_ enabled: Bool) {
+        if autoVolumeMonitoring { stopAutoVolume("操作其他设置，自动音量已停止") }
         guard canSetAdvancedControls, let current = values[27], current.count == 1, current[0] <= 1 else { return }
         let target: UInt8 = enabled ? 1 : 0
         guard current != [target] else { return }
@@ -174,6 +271,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
     private func validResponse(_ command: UInt8, _ payload: [UInt8]) -> Bool {
         switch command {
         case 8: return MarsMCUVersion(payload) != nil
+        case 23: return MarsProximitySignal.decode(payload) != nil
         case 26: return MarsPromptSounds(payload) != nil
         case 27: return payload.count == 1 && payload[0] <= 1
         case 18, 20: return payload.count == 1
@@ -182,6 +280,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         }
     }
     func rename(_ name: String) {
+        if autoVolumeMonitoring { stopAutoVolume("操作其他设置，自动音量已停止") }
         guard connected, !busy else { return }
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, name.utf8.count <= 17 else {
@@ -203,8 +302,8 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
     private func nextSequence() -> UInt8 {
         let result = sequence; sequence = sequence == 127 ? 1 : sequence + 1; return result
     }
-    private func enqueue(_ command: UInt8, payload: [UInt8]?, expected: [UInt8]? = nil, front: Bool = false, queryArguments: [UInt8] = []) {
-        let request = Request(command: command, payload: payload, sequence: nextSequence(), expected: expected, queryArguments: queryArguments)
+    private func enqueue(_ command: UInt8, payload: [UInt8]?, expected: [UInt8]? = nil, front: Bool = false, queryArguments: [UInt8] = [], automatic: Bool = false) {
+        let request = Request(command: command, payload: payload, sequence: nextSequence(), expected: expected, queryArguments: queryArguments, automatic: automatic)
         if front { queue.insert(request, at: 0) } else { queue.append(request) }
     }
     private func sendNext() {
@@ -235,6 +334,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         timer = Timer.scheduledTimer(withTimeInterval: 4, repeats: false) { [weak self] _ in
             guard let self, let pending = self.pending else { return }
             self.pending = nil
+            if pending.automatic { self.stopAutoVolume("自动音量查询或设置超时，已停止；未重发") }
             self.queryIssues[pending.command] = "设备未返回有效状态"
             if pending.payload != nil || pending.expected != nil {
                 if pending.command == 26 || pending.command == 27 { self.values.removeValue(forKey: pending.command) }
@@ -262,7 +362,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
                     if request.command == 13 {
                         feedback = MarsFeedback(message: payload.first == 1 ? "升起指令已接收" : "降落指令已接收", style: .notice)
                     }
-                    enqueue(request.command, payload: nil, expected: request.command == 7 ? MarsWire.unescape(payload) : payload, front: true)
+                    enqueue(request.command, payload: nil, expected: request.command == 7 ? MarsWire.unescape(payload) : payload, front: true, automatic: request.automatic)
                     DispatchQueue.main.asyncAfter(deadline: .now() + (request.command == 13 ? 2.0 : 0.1)) { [weak self] in self?.sendNext() }
                 }
                 continue
@@ -275,24 +375,38 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
             guard seenResponses.insert(fingerprint).inserted || awaitingThisCommand else { continue }
             if seenResponses.count > 128 { seenResponses.removeAll(); seenResponses.insert(fingerprint) }
             guard frame.operation == 2, let command = frame.command else { continue }
-            let payload = [8, 18, 19, 20, 21, 26, 27].contains(Int(command)) ? MarsWire.unescape(frame.payload) : frame.payload
+            let payload = [8, 18, 19, 20, 21, 23, 26, 27].contains(Int(command)) ? MarsWire.unescape(frame.payload) : frame.payload
             guard validResponse(command, payload) else {
                 queryIssues[command] = "设备返回格式无法识别"
+                if command == 23 {
+                    proximityRaw = Data(payload).marsHex
+                    stopAutoVolume("音箱信号返回不符合预期，已停止检测")
+                }
+                if command == 4 && pending?.automatic == true { stopAutoVolume("音量返回无效，已停止自动音量") }
                 continue
             }
             if command == 19 || command == 21 {
                 guard let request = pending, request.command == command, request.payload == nil,
                       payload.first == request.queryArguments.first else { continue }
             }
+            if command == 4, pending?.automatic == true, (payload.count != 1 || payload[0] > 16) {
+                stopAutoVolume("音量返回无效，已停止自动音量")
+                continue
+            }
             values[command] = payload
             if command != 19 && command != 21 { queryIssues.removeValue(forKey: command) }
             lastConfirmed = Date().formatted(date: .omitted, time: .standard)
             if let request = pending, request.command == command, request.payload == nil {
                 timer?.invalidate(); pending = nil
+                if request.automatic && request.expected == nil {
+                    if command == 23 && autoVolumeMonitoring { consumeProximity(payload) }
+                    if command == 4 { applyAutomaticVolumeIfNeeded() }
+                }
                 let actual = command == 7 ? MarsWire.unescape(frame.payload) : payload
                 if let expected = request.expected {
                     let liftMatch = command == 13 && ((expected == [1] && [1,3,4].contains(Int(actual.first ?? 255))) || (expected == [0] && [0,2,5].contains(Int(actual.first ?? 255))))
                     let matched = actual == expected || liftMatch
+                    if request.automatic && !matched { stopAutoVolume("音量回读与目标不同，自动音量已停止") }
                     if command == 7 {
                         if matched {
                             pendingName = String(bytes: expected, encoding: .utf8)

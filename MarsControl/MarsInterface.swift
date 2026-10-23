@@ -17,7 +17,7 @@ enum MarsTheme {
 }
 
 enum MarsPage: String, CaseIterable, Identifiable {
-    case levitation, pattern, brightness, eq, volume, name, settings, connections, information
+    case levitation, pattern, brightness, eq, volume, name, autoVolume, settings, connections, information
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -27,6 +27,7 @@ enum MarsPage: String, CaseIterable, Identifiable {
         case .eq: return "均衡器"
         case .volume: return "音量"
         case .name: return "设备名称"
+        case .autoVolume: return "自动音量"
         case .settings: return "提示音与待机"
         case .connections: return "连接设备"
         case .information: return "设备信息"
@@ -40,6 +41,7 @@ enum MarsPage: String, CaseIterable, Identifiable {
         case .eq: return "slider.vertical.3"
         case .volume: return "speaker.wave.2"
         case .name: return "pencil.line"
+        case .autoVolume: return "dot.radiowaves.left.and.right"
         case .settings: return "switch.2"
         case .connections: return "iphone.and.arrow.forward"
         case .information: return "info.circle"
@@ -241,6 +243,7 @@ struct MarsDevicePage: View {
         case .eq: return controller.value(3).map(MarsEQ.name) ?? "—"
         case .volume: return controller.value(4).map { $0 == 0 ? "静音" : "\($0) / 16" } ?? "—"
         case .name: return ""
+        case .autoVolume: return controller.autoVolumeEnabled ? "运行中" : "实验功能"
         case .settings: return "实验功能"
         case .connections: return "只读"
         case .information: return controller.mcuVersion?.label ?? "—"
@@ -262,6 +265,7 @@ struct MarsDetailPage: View {
                 case .volume: LevelPage(controller: controller, command: 4)
                 case .eq: EQPage(controller: controller)
                 case .name: NamePage(controller: controller)
+                case .autoVolume: AutoVolumePage(controller: controller)
                 case .settings: AdvancedSettingsPage(controller: controller)
                 case .connections: ConnectionListPage(controller: controller)
                 case .information: DeviceInformationPage(controller: controller)
@@ -334,6 +338,9 @@ struct LevelPage: View {
                 HStack(spacing: 18) {
                     Image(systemName: isBrightness ? "sun.min" : "speaker").foregroundStyle(MarsTheme.muted)
                     Slider(value: $draft, in: 0...maximum, step: 1, onEditingChanged: { changed in
+                        if changed && command == 4 && controller.autoVolumeMonitoring {
+                            controller.stopAutoVolume("手动调节音量，自动音量已停止")
+                        }
                         editing = changed
                         if !changed, enabled, Int(draft) != controller.value(command) { controller.set(command, UInt8(draft)) }
                     })

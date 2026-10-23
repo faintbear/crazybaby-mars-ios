@@ -1,0 +1,44 @@
+import Foundation
+
+/// Original Android 2.1.0 recurrence. The controller adds opt-in, limits and stop conditions.
+struct MarsAutoVolumeAlgorithm {
+    private var samples = 0
+    private var average = 0
+    private var previous = 0
+    private(set) var latestTarget: Int?
+    private(set) var adjustmentDue = false
+    mutating func consume(rssi: Int) -> Int? {
+        adjustmentDue = false
+        let level = min(15, max(1, abs(rssi + 40) / 4))
+        samples += 1
+        average = (average + level) / 2
+        guard samples > 2 else { return nil }
+        samples = 0
+        adjustmentDue = true
+        average = min(15, average + 3)
+        guard average != previous else { return nil }
+        previous = average
+        let result = average
+        latestTarget = result
+        average = level
+        return result
+    }
+}
+
+enum MarsProximitySignal {
+    static func decode(_ payload: [UInt8]) -> Int? {
+        // The original code reads the second payload byte as a signed Java byte.
+        guard payload.count == 2 else { return nil }
+        let rssi = Int(Int8(bitPattern: payload[1]))
+        guard (-110 ... -10).contains(rssi) else { return nil }
+        return rssi
+    }
+    static func boundedTarget(_ suggestion: Int, current: Int, maximum: Int) -> Int? {
+        // Never unmute, and never turn a single automatic update into a large jump.
+        guard (1...16).contains(current), (1...15).contains(maximum) else { return nil }
+        let limited = min(maximum, max(1, suggestion))
+        let next = min(current + 1, max(current - 1, limited))
+        // A reduced ceiling is a hard bound, even when that requires a larger decrease.
+        return min(maximum, next)
+    }
+}
