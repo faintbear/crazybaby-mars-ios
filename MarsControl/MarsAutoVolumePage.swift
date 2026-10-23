@@ -5,17 +5,22 @@ struct AutoVolumePage: View {
     var body: some View {
         VStack(spacing: 24) {
             PageHeading(eyebrow: "PROXIMITY VOLUME · EXPERIMENTAL", title: "让音量随距离变化", subtitle: "基于原厂旧版算法重建，仅在 App 前台运行")
+            Picker("信号来源", selection: Binding(get: { controller.autoVolumeSignalSource }, set: { controller.selectAutoVolumeSignalSource($0) })) {
+                ForEach(MarsAutoVolumeSignalSource.allCases) { Text($0.title).tag($0) }
+            }.pickerStyle(.segmented)
+            Text(controller.autoVolumeSignalSource == .iphoneBLE ? "默认采用已验证可读取的 iPhone BLE 信号，使用原版 2.1.0 公式与调节周期。" : "原厂信号查询在当前音箱上曾返回 0，保留此入口用于兼容其他固件。")
+                .font(.footnote).foregroundStyle(MarsTheme.muted)
             VStack(spacing: 12) {
                 Text((controller.proximityRSSI ?? controller.proximityReportedRSSI).map { "\($0)" } ?? "—")
                     .font(.system(size: 60, weight: .ultraLight, design: .rounded)).monospacedDigit()
-                Text("音箱返回的信号强度 · dBm").font(.caption).foregroundStyle(MarsTheme.muted)
+                Text("\(controller.autoVolumeSignalSource.title) 信号强度 · dBm").font(.caption).foregroundStyle(MarsTheme.muted)
                 Text("收到响应 \(controller.proximityResponseCount) 次 · 有效采样 \(controller.proximitySamples) 次").font(.caption).foregroundStyle(MarsTheme.muted)
-                if controller.proximityReportedRSSI == 0 {
+                if controller.autoVolumeSignalSource == .speakerProtocol && controller.proximityReportedRSSI == 0 {
                     Text("0 暂不视为有效距离信号，不会据此调节音量")
                         .font(.caption).foregroundStyle(MarsTheme.muted)
                 }
                 if let suggestion = controller.proximitySuggestion {
-                    Text("原算法建议 \(suggestion) 档 · 实际受上限与平滑限制")
+                    Text("原算法建议 \(suggestion) 档 · 实际受音量上限约束")
                         .font(.caption).foregroundStyle(MarsTheme.muted)
                 }
             }.frame(maxWidth: .infinity).padding(24)
@@ -29,7 +34,7 @@ struct AutoVolumePage: View {
                 if controller.autoVolumeMonitoring { controller.stopAutoVolume() }
                 else { controller.startProximityMonitoring() }
             }.buttonStyle(.bordered)
-                .disabled(!controller.autoVolumeMonitoring && (!controller.connected || controller.busy))
+                .disabled(!controller.autoVolumeMonitoring && (!controller.connected || controller.busy || controller.bleSignalAwaitingResponse || (controller.autoVolumeSignalSource == .iphoneBLE && controller.bleSignalRequiresReconnect)))
                 .accessibilityIdentifier("proximity.monitor")
             VStack(spacing: 18) {
                 Toggle("开启自动音量", isOn: Binding(
@@ -64,9 +69,9 @@ struct AutoVolumePage: View {
             }
             VStack(alignment: .leading, spacing: 12) {
                 Text("先拿着 iPhone 走近、走远，观察信号是否随之变化。至少取得三个有效采样后才能开启；这只验证返回格式，不代表距离测量已经准确。")
-                Text("建议低音量播放测试。每次最多提高一档，降低上限可能触发更大的降幅。自动音量不会取消静音。")
+                Text("按原版公式直接设置目标档位，可能跨越多档。默认上限为 8 / 15，请按需要降低；自动音量不会取消静音。")
                 Text("切换 App、锁屏、断线、读取其他设置或手动调音量都会停止，不会自动恢复。已发出的指令仍可能完成。手机留在原地时无法感知你的位置。")
-                Text("若音箱不返回有效信号，此功能保持不可用。当前尚未完成 Mars 实物验证，不保证听感响度恒定。")
+                Text("iPhone BLE 与音箱原厂信号的测量侧不同；目前只确认 iPhone 信号可读取，自动调节效果仍待试听，不保证响度恒定。")
             }.font(.footnote).foregroundStyle(MarsTheme.muted).frame(maxWidth: .infinity, alignment: .leading)
         }
     }

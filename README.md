@@ -35,20 +35,19 @@ The dark interface includes a device list, feature pages, connection status, ope
 
 Physical verification above concerns the control capabilities. Interface interactions such as dragging have not all undergone automated testing. Editing custom EQ bands is not implemented.
 
-## New in 0.5.0: experimental Proximity Volume
+## Auto Volume (0.6.0, experimental)
 
-Auto Volume is reconstructed from the complete Android 2.1.0 implementation. That version polls the speaker’s RSSI command (`0x17`) roughly every two seconds and calculates volume after every three samples. The complete automatic path was not found in the inspected Android 3.0.11 Java code, despite its retained page name and request enumeration.
+Uses the Android 2.1.0 formula, integer smoothing, and polling cadence: roughly one signal sample every two seconds, with a target calculation after three samples. The original signal query returns zero on the tested speaker’s BLE path, so the default input is now iPhone CoreBluetooth RSSI, which has been physically observed to vary between near/far positions. The alternative “音箱原厂” input is retained for compatible firmware. Different measurement sources do not establish identical behavior to the original app.
 
-1. Open “自动音量” and start the read-only signal check. Move your iPhone closer to and farther from Mars while watching the reported signal.
-2. After at least three valid samples and a valid nonzero volume response, select a maximum level and explicitly enable automatic volume. Three samples validate response format, not distance accuracy.
-3. Keep the app in the foreground. Manual device controls, disconnects, timeouts, invalid responses, inconsistent setting readbacks, or leaving the foreground stop the feature. It never resumes automatically or unmutes the speaker.
+1. Open “自动音量”, leave the source as “iPhone BLE”, and start read-only detection.
+2. After three valid samples and a valid nonzero speaker volume response, choose an upper volume limit and explicitly enable Auto Volume.
+3. The algorithm’s target is applied directly, capped by your limit (default 8/15). It can move several levels in one adjustment. There is no new distance-bin or comfortable-volume-baseline algorithm. It never unmutes the speaker.
 
-The app uses the speaker-returned signed signal byte, not the iPhone’s own BLE RSSI API. It accepts the expected two-byte payload only, with the second byte in a plausible −110 to −10 dBm range. Devices that do not provide this response cannot enable the feature.
+Manual device controls, disconnects, timeouts, invalid responses, mismatched setting readbacks, and leaving the foreground stop the feature. It never resumes automatically. An already-sent command may still complete. The separate “BLE 信号测试” page remains read-only and cannot enable automatic volume.
 
-The original recurrence is combined with a user-selected ceiling (1–15), at most one upward step per adjustment, and gradual decreases unless a lower ceiling requires a larger drop. The initial ceiling is no higher than the currently read volume or level 8. No cloud service, microphone, location permission, or persistent background execution is used. Phone position is only a proxy for listener position; this does not guarantee constant perceived loudness.
+The recurrence and control framing pass local tests. iPhone BLE signal reception and speaker volume commands have been verified separately; the combined automatic listening behavior still needs physical evaluation. Keep the app in the foreground, test at a low listening level, and choose a suitable ceiling. Phone position is only a proxy for listener position, and constant perceived loudness is not guaranteed.
 
-Protocol and algorithm checks pass, but this feature has not yet been verified on a physical Mars speaker. In-flight commands can still complete after stopping. Test at a low listening level first.
-
+The Android 3.0.11 Java paths inspected retain the Auto Volume page and request enum, but the full loop was found in Android 2.1.0. Firmware updates are not involved.
 
 ### Signal diagnostics in 0.5.1
 

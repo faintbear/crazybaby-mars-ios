@@ -1,6 +1,12 @@
 import Foundation
 
 /// Original Android 2.1.0 recurrence. The controller adds opt-in, limits and stop conditions.
+enum MarsAutoVolumeSignalSource: String, CaseIterable, Identifiable {
+    case iphoneBLE, speakerProtocol
+    var id: String { rawValue }
+    var title: String { self == .iphoneBLE ? "iPhone BLE" : "音箱原厂" }
+}
+
 struct MarsAutoVolumeAlgorithm {
     private var samples = 0
     private var average = 0
@@ -39,12 +45,8 @@ enum MarsProximitySignal {
         if value == 0 { return "音箱返回信号值 0，尚未取得可用信号；请确认音频连接与播放后重试" }
         return "音箱返回信号值 \(value)，超出当前验证范围，已停止自动音量"
     }
-    static func boundedTarget(_ suggestion: Int, current: Int, maximum: Int) -> Int? {
-        // Never unmute, and never turn a single automatic update into a large jump.
+    static func originalLimitedTarget(_ suggestion: Int, current: Int, maximum: Int) -> Int? {
         guard (1...16).contains(current), (1...15).contains(maximum) else { return nil }
-        let limited = min(maximum, max(1, suggestion))
-        let next = min(current + 1, max(current - 1, limited))
-        // A reduced ceiling is a hard bound, even when that requires a larger decrease.
-        return min(maximum, next)
+        return min(maximum, max(1, suggestion))
     }
 }

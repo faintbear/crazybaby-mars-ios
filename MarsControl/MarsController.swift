@@ -12,6 +12,8 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
     var mcuVersion: MarsMCUVersion? { MarsMCUVersion(values[8]) }
     var promptSounds: MarsPromptSounds? { MarsPromptSounds(values[26]) }
     var canSetAdvancedControls: Bool { connected && !busy && mcuVersion?.supportsAdvancedControls == true }
+    @Published private(set) var autoVolumeSignalSource = MarsAutoVolumeSignalSource.iphoneBLE
+    private var pendingBLEForAutoVolume = false
     @Published private(set) var autoVolumeMonitoring = false
     @Published private(set) var autoVolumeEnabled = false
     @Published private(set) var proximityRSSI: Int?
@@ -33,10 +35,19 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         proximityReportedRSSI = payload.count == 2 ? Int(Int8(bitPattern: payload[1])) : nil
         proximityLastFrame = "长度 \(payload.count)：" + Data(payload).marsHex
         proximityDiagnostics.append(["time": ISO8601DateFormatter().string(from: Date()),
-            "sequence": Int(frame.sequence), "body": Data(frame.body).marsHex,
+            "source": "speaker-protocol", "sequence": Int(frame.sequence), "body": Data(frame.body).marsHex,
             "payload": Data(payload).marsHex, "signedBytes": payload.map { Int(Int8(bitPattern: $0)) }])
+        saveProximityDiagnostics()
+    }
+    private func recordAutoBLESignal(_ value: Int) {
+        proximityResponseCount += 1; proximityReportedRSSI = value
+        proximityLastFrame = "iPhone BLE：\(value) dBm"
+        proximityDiagnostics.append(["time": ISO8601DateFormatter().string(from: Date()), "source": "iphone-corebluetooth", "rssi": value])
+        saveProximityDiagnostics()
+    }
+    private func saveProximityDiagnostics() {
         if proximityDiagnostics.count > 12 { proximityDiagnostics.removeFirst(proximityDiagnostics.count - 12) }
-        let report: [String: Any] = ["version": 1, "command": 23, "frames": proximityDiagnostics]
+        let report: [String: Any] = ["version": 2, "frames": proximityDiagnostics]
         if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) {
             try? data.write(to: proximityReportURL, options: .atomic)
         }
@@ -196,8 +207,17 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
             stopBLESignalTest("已离开前台，BLE 只读测试停止")
         }
     }
+    func selectAutoVolumeSignalSource(_ source: MarsAutoVolumeSignalSource) {
+        guard source != autoVolumeSignalSource else { return }
+        stopAutoVolume("信号来源已切换，请重新检测后开启")
+        autoVolumeSignalSource = source
+        proximityRSSI = nil; proximityReportedRSSI = nil; proximitySamples = 0; proximityResponseCount = 0
+        proximitySuggestion = nil; proximityLastFrame = "尚未读取"
+        proximityDiagnostics.removeAll(); saveProximityDiagnostics()
+    }
     func startProximityMonitoring() {
-        guard appActive, connected, !busy else { return }
+        guard appActive, connected, !busy, !bleSignalAwaitingResponse,
+              autoVolumeSignalSource != .iphoneBLE || !bleSignalRequiresReconnect else { return }
         stopBLESignalTest("切换为原厂信号检测，BLE 测试停止")
         stopAutoVolume("开始只读信号检测")
         proximityRSSI = nil; proximitySamples = 0; proximitySuggestion = nil
@@ -205,9 +225,10 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         proximityReportedRSSI = nil; proximityResponseCount = 0; proximityLastFrame = "等待音箱返回"
         proximityAlgorithm = MarsAutoVolumeAlgorithm()
         proximityAdjustmentDue = false
-        autoVolumeMaximum = min(8, max(1, value(4) ?? 8))
+        proximityDiagnostics.removeAll(); saveProximityDiagnostics()
+        autoVolumeMaximum = 8
         autoVolumeMonitoring = true
-        proximityStatus = "只读检测中，请拿着 iPhone 走近、走远观察信号"
+        proximityStatus = "只读检测中：\(autoVolumeSignalSource.title)，确认采样后即可开启"
         autoVolumeTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.pollProximity() }
         pollProximity()
     }
@@ -217,7 +238,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         proximityAlgorithm = MarsAutoVolumeAlgorithm()
         proximityAdjustmentDue = false
         proximitySuggestion = nil
-        proximityStatus = "自动音量已开启；前台运行，每次最多提高一档"
+        proximityStatus = "自动音量已开启：使用 2.1.0 算法，音量受上限约束"
     }
     func setAutoVolumeMaximum(_ maximum: Int) {
         guard (1...15).contains(maximum) else { return }
@@ -239,6 +260,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
             return
         }
         guard !busy else { return }
+        if autoVolumeSignalSource == .iphoneBLE { pollBLESignal(forAutoVolume: true); return }
         enqueue(23, payload: nil, automatic: true)
         enqueue(4, payload: nil, automatic: true)
         sendNext()
@@ -249,10 +271,13 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
             stopAutoVolume(MarsProximitySignal.rejectionMessage(payload))
             return
         }
+        consumeProximityRSSI(rssi)
+    }
+    private func consumeProximityRSSI(_ rssi: Int) {
         proximityRSSI = rssi; proximitySamples += 1; lastProximitySample = Date()
-        _ = proximityAlgorithm.consume(rssi: rssi)
+        let newTarget = proximityAlgorithm.consume(rssi: rssi)
         proximitySuggestion = proximityAlgorithm.latestTarget
-        proximityAdjustmentDue = proximityAlgorithm.adjustmentDue
+        proximityAdjustmentDue = newTarget != nil
     }
     private func applyAutomaticVolumeIfNeeded() {
         guard autoVolumeMonitoring, autoVolumeEnabled, appActive,
@@ -261,7 +286,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         guard current > 0 else { stopAutoVolume("音箱已静音，自动音量停止，不会自动取消静音"); return }
         guard proximityAdjustmentDue, let suggestion = proximitySuggestion else { return }
         proximityAdjustmentDue = false
-        guard let target = MarsProximitySignal.boundedTarget(suggestion, current: current, maximum: autoVolumeMaximum), target != current else { return }
+        guard let target = MarsProximitySignal.originalLimitedTarget(suggestion, current: current, maximum: autoVolumeMaximum), target != current else { return }
         enqueue(4, payload: [UInt8(target)], automatic: true)
     }
     func startBLESignalTest() {
@@ -283,22 +308,36 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
     func markBLESignalPosition(_ position: MarsSignalPosition) {
         bleSignalTrace.position = position
     }
-    private func pollBLESignal() {
-        guard appActive, connected, bleSignalRunning, let device else { return }
+    private func pollBLESignal(forAutoVolume: Bool = false) {
+        guard appActive, connected, forAutoVolume ? autoVolumeMonitoring : bleSignalRunning, let device else { return }
         guard !bleSignalAwaitingResponse else { return }
         bleSignalAwaitingResponse = true
+        pendingBLEForAutoVolume = forAutoVolume
         device.readRSSI()
         bleSignalTimeout?.invalidate()
         bleSignalTimeout = Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { [weak self] _ in
             guard let self, self.bleSignalAwaitingResponse else { return }
             self.bleSignalAwaitingResponse = false
             self.bleSignalRequiresReconnect = true
-            self.stopBLESignalTest("BLE 信号读取超时，请断开重连后再测；未自动重试")
+            if self.pendingBLEForAutoVolume { self.stopAutoVolume("BLE 信号读取超时，请断开重连后再测；未重试") }
+            else { self.stopBLESignalTest("BLE 信号读取超时，请断开重连后再测；未自动重试") }
         }
     }
     func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
         guard peripheral.identifier == device?.identifier, bleSignalAwaitingResponse else { return }
         bleSignalTimeout?.invalidate(); bleSignalAwaitingResponse = false
+        if pendingBLEForAutoVolume {
+            guard appActive, connected, autoVolumeMonitoring, autoVolumeSignalSource == .iphoneBLE else { return }
+            guard error == nil, (-110 ... -10).contains(RSSI.intValue) else {
+                stopAutoVolume("iPhone BLE 信号不可用，自动音量已停止")
+                return
+            }
+            recordAutoBLESignal(RSSI.intValue)
+            consumeProximityRSSI(RSSI.intValue)
+            guard !busy else { stopAutoVolume("其他操作打断采样，自动音量停止"); return }
+            enqueue(4, payload: nil, automatic: true); sendNext()
+            return
+        }
         guard bleSignalRunning, appActive, connected else { return }
         guard error == nil else {
             stopBLESignalTest("BLE 信号读取失败：" + (error?.localizedDescription ?? "未知错误"))
@@ -474,7 +513,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
             if command == 23 { recordProximityFrame(frame) }
             guard validResponse(command, payload) else {
                 queryIssues[command] = "设备返回格式无法识别"
-                if command == 23 {
+                if command == 23 && autoVolumeSignalSource == .speakerProtocol {
                     proximityRaw = Data(payload).marsHex
                     // A rejected response is still a completed query, not a timeout.
                     if pending?.command == 23 && pending?.payload == nil {
@@ -502,7 +541,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
             if let request = pending, request.command == command, request.payload == nil {
                 timer?.invalidate(); pending = nil
                 if request.automatic && request.expected == nil {
-                    if command == 23 && autoVolumeMonitoring { consumeProximity(payload) }
+                    if command == 23 && autoVolumeMonitoring && autoVolumeSignalSource == .speakerProtocol { consumeProximity(payload) }
                     if command == 4 { applyAutomaticVolumeIfNeeded() }
                 }
                 let actual = command == 7 ? MarsWire.unescape(frame.payload) : payload
