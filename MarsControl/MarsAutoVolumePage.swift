@@ -4,7 +4,7 @@ struct AutoVolumePage: View {
     @ObservedObject var controller: MarsController
     var body: some View {
         VStack(spacing: 24) {
-            PageHeading(eyebrow: "PROXIMITY VOLUME · EXPERIMENTAL", title: "让音量随距离变化", subtitle: "基于原厂旧版算法重建，仅在 App 前台运行")
+            PageHeading(eyebrow: "PROXIMITY VOLUME", title: "让音量随距离变化", subtitle: "靠近降低，走远提高；上限由你设定，仅在前台运行")
             Picker("信号来源", selection: Binding(get: { controller.autoVolumeSignalSource }, set: { controller.selectAutoVolumeSignalSource($0) })) {
                 ForEach(MarsAutoVolumeSignalSource.allCases) { Text($0.title).tag($0) }
             }.pickerStyle(.segmented)
@@ -30,7 +30,7 @@ struct AutoVolumePage: View {
             }.buttonStyle(.bordered)
             Text(controller.proximityStatus).font(.footnote).foregroundStyle(MarsTheme.accent)
                 .multilineTextAlignment(.center)
-            Button(controller.autoVolumeMonitoring ? "停止检测与自动音量" : "开始只读信号检测") {
+            Button(controller.autoVolumeMonitoring ? "停止检测与自动音量" : "开始检测") {
                 if controller.autoVolumeMonitoring { controller.stopAutoVolume() }
                 else { controller.startProximityMonitoring() }
             }.buttonStyle(.bordered)
@@ -52,8 +52,7 @@ struct AutoVolumePage: View {
                 }
                 Slider(value: Binding(get: { Double(controller.autoVolumeMaximum) },
                                       set: { controller.setAutoVolumeMaximum(Int($0)) }), in: 1...15, step: 1)
-                    .disabled(!controller.autoVolumeMonitoring)
-                    .accessibilityLabel("自动音量上限")
+                                        .accessibilityLabel("自动音量上限")
                 Text("\(controller.value(4).map { "设备音量 \($0) / 16" } ?? "设备音量尚未读取")")
                     .font(.caption).foregroundStyle(MarsTheme.muted)
             }.padding(20).background(MarsTheme.panel, in: RoundedRectangle(cornerRadius: 17))
@@ -68,10 +67,10 @@ struct AutoVolumePage: View {
                 }.padding(.top, 8)
             }
             VStack(alignment: .leading, spacing: 12) {
-                Text("先拿着 iPhone 走近、走远，观察信号是否随之变化。至少取得三个有效采样后才能开启；这只验证返回格式，不代表距离测量已经准确。")
-                Text("按原版公式直接设置目标档位，可能跨越多档。默认上限为 8 / 15，请按需要降低；自动音量不会取消静音。")
+                Text("点击开始检测，等待约 6 秒后打开自动音量。无需完成额外测试；信号有效且设备音量非静音时即可开启。")
+                Text("按原版公式直接设置目标档位，可能跨越多档。音量上限由你设置并自动保存；首次默认为 8 / 15。自动音量不会取消静音。")
                 Text("切换 App、锁屏、断线、读取其他设置或手动调音量都会停止，不会自动恢复。已发出的指令仍可能完成。手机留在原地时无法感知你的位置。")
-                Text("iPhone BLE 与音箱原厂信号的测量侧不同；目前只确认 iPhone 信号可读取，自动调节效果仍待试听，不保证响度恒定。")
+                Text("iPhone BLE 与音箱原厂信号的测量侧不同；已验证信号采样及开启后音量降低；远近连续调节仍待验证，不保证响度恒定。")
             }.font(.footnote).foregroundStyle(MarsTheme.muted).frame(maxWidth: .infinity, alignment: .leading)
         }
     }

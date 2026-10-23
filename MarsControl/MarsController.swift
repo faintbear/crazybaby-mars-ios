@@ -23,7 +23,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
     @Published private(set) var proximitySamples = 0
     @Published private(set) var proximitySuggestion: Int?
     @Published private(set) var proximityStatus = "先进行只读信号检测，不会改变音量"
-    @Published private(set) var autoVolumeMaximum = 8
+    @Published private(set) var autoVolumeMaximum = (1...15).contains(UserDefaults.standard.integer(forKey: "marsAutoVolumeMaximum")) ? UserDefaults.standard.integer(forKey: "marsAutoVolumeMaximum") : 8
     @Published private(set) var proximityLastFrame = "尚未收到信号响应"
     private var proximityDiagnostics: [[String: Any]] = []
     var proximityReportURL: URL {
@@ -218,7 +218,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
     func startProximityMonitoring() {
         guard appActive, connected, !busy, !bleSignalAwaitingResponse,
               autoVolumeSignalSource != .iphoneBLE || !bleSignalRequiresReconnect else { return }
-        stopBLESignalTest("切换为原厂信号检测，BLE 测试停止")
+        stopBLESignalTest("切换为自动音量检测，BLE 测试停止")
         stopAutoVolume("开始只读信号检测")
         proximityRSSI = nil; proximitySamples = 0; proximitySuggestion = nil
         proximityRaw = "等待音箱返回"; lastProximitySample = nil
@@ -226,7 +226,6 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         proximityAlgorithm = MarsAutoVolumeAlgorithm()
         proximityAdjustmentDue = false
         proximityDiagnostics.removeAll(); saveProximityDiagnostics()
-        autoVolumeMaximum = 8
         autoVolumeMonitoring = true
         proximityStatus = "只读检测中：\(autoVolumeSignalSource.title)，确认采样后即可开启"
         autoVolumeTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.pollProximity() }
@@ -243,6 +242,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
     func setAutoVolumeMaximum(_ maximum: Int) {
         guard (1...15).contains(maximum) else { return }
         autoVolumeMaximum = maximum
+        UserDefaults.standard.set(maximum, forKey: "marsAutoVolumeMaximum")
     }
     func stopAutoVolume(_ reason: String = "已停止自动音量与信号检测") {
         autoVolumeTimer?.invalidate(); autoVolumeTimer = nil

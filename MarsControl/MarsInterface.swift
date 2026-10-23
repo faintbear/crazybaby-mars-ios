@@ -245,7 +245,7 @@ struct MarsDevicePage: View {
         case .eq: return controller.value(3).map(MarsEQ.name) ?? "—"
         case .volume: return controller.value(4).map { $0 == 0 ? "静音" : "\($0) / 16" } ?? "—"
         case .name: return ""
-        case .autoVolume: return controller.autoVolumeEnabled ? "运行中" : "实验功能"
+        case .autoVolume: return controller.autoVolumeEnabled ? "运行中" : "BLE 距离感应"
         case .bleSignal: return controller.bleSignalRunning ? "只读采样中" : "只读"
         case .settings: return "实验功能"
         case .connections: return "只读"

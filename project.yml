@@ -24,8 +24,8 @@ targets:
       path: MarsControl/Info.plist
       properties:
         CFBundleDisplayName: Mars 控制
-        CFBundleShortVersionString: "0.6.0"
-        CFBundleVersion: "8"
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "9"
         UILaunchScreen: {}
         UIRequiresFullScreen: true
         NSBluetoothAlwaysUsageDescription: 通过蓝牙连接并控制你的 Mars 音箱。

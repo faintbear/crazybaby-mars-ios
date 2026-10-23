@@ -35,7 +35,7 @@ The dark interface includes a device list, feature pages, connection status, ope
 
 Physical verification above concerns the control capabilities. Interface interactions such as dragging have not all undergone automated testing. Editing custom EQ bands is not implemented.
 
-## Auto Volume (0.6.0, experimental)
+## Auto Volume (1.0.0)
 
 Uses the Android 2.1.0 formula, integer smoothing, and polling cadence: roughly one signal sample every two seconds, with a target calculation after three samples. The original signal query returns zero on the tested speaker’s BLE path, so the default input is now iPhone CoreBluetooth RSSI, which has been physically observed to vary between near/far positions. The alternative “音箱原厂” input is retained for compatible firmware. Different measurement sources do not establish identical behavior to the original app.
 
@@ -45,7 +45,7 @@ Uses the Android 2.1.0 formula, integer smoothing, and polling cadence: roughly 
 
 Manual device controls, disconnects, timeouts, invalid responses, mismatched setting readbacks, and leaving the foreground stop the feature. It never resumes automatically. An already-sent command may still complete. The separate “BLE 信号测试” page remains read-only and cannot enable automatic volume.
 
-The recurrence and control framing pass local tests. iPhone BLE signal reception and speaker volume commands have been verified separately; the combined automatic listening behavior still needs physical evaluation. Keep the app in the foreground, test at a low listening level, and choose a suitable ceiling. Phone position is only a proxy for listener position, and constant perceived loudness is not guaranteed.
+The user-selected volume ceiling is saved between sessions. The recurrence and control framing pass local tests. iPhone BLE signal reception and speaker volume commands have been verified separately; a physical test confirmed that enabling automatic volume lowered the speaker volume. Continuous near/far adjustment still needs physical evaluation. Keep the app in the foreground, test at a low listening level, and choose a suitable ceiling. Phone position is only a proxy for listener position, and constant perceived loudness is not guaranteed.
 
 The Android 3.0.11 Java paths inspected retain the Auto Volume page and request enum, but the full loop was found in Android 2.1.0. Firmware updates are not involved.
 
