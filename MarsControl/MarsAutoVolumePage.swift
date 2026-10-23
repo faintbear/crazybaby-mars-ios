@@ -20,6 +20,9 @@ struct AutoVolumePage: View {
                 }
             }.frame(maxWidth: .infinity).padding(24)
                 .background(MarsTheme.panel, in: RoundedRectangle(cornerRadius: 17))
+            NavigationLink(value: MarsRoute.feature(.bleSignal)) {
+                Label("测试 iPhone BLE 信号（只读）", systemImage: "waveform.path")
+            }.buttonStyle(.bordered)
             Text(controller.proximityStatus).font(.footnote).foregroundStyle(MarsTheme.accent)
                 .multilineTextAlignment(.center)
             Button(controller.autoVolumeMonitoring ? "停止检测与自动音量" : "开始只读信号检测") {

@@ -9,11 +9,13 @@
 /* Begin PBXBuildFile section */
 		2CEDE238B307DB7DAFDB6AF5 /* MarsProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B8905489AC66879C744479 /* MarsProtocol.swift */; };
 		47629607E9628A5A5396DBD1 /* MarsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1B5577C11088A9033B1DCE0 /* MarsController.swift */; };
+		49F7ADE7456D351CA0D2EE73 /* MarsBLESignal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAFBA39414EE94209E5ACFD /* MarsBLESignal.swift */; };
 		59F40124792CB88D42D3C78C /* MarsFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = D57C96C4E352D29E2805437A /* MarsFeatures.swift */; };
 		62103C99B836B8B83D76A67D /* MarsAutoVolume.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1D613ED2D68B7085315F92 /* MarsAutoVolume.swift */; };
 		A335497B14DE59E3DD28ECB5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3F34C07BE81C6935FB3716E0 /* Assets.xcassets */; };
 		D0B16C68036A223DDFEB43F3 /* MarsAutoVolumePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE5FB7DB5557DE4143E2870B /* MarsAutoVolumePage.swift */; };
 		D896DBE83DAC98EA560AB5B7 /* MarsInterface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4996D5A23FE2BACC0AA08DEF /* MarsInterface.swift */; };
+		EBDF2618FBF4E5C546F2E139 /* MarsBLESignalPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD7A3CF93403C2A449388CE /* MarsBLESignalPage.swift */; };
 		ED9C18B83D026612EB901E30 /* MarsControlApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 725C62DEB3D97DFA0724E986 /* MarsControlApp.swift */; };
 		F57BA5C6A8024697A7ABF3FD /* MarsAdvancedPages.swift in Sources */ = {isa = PBXBuildFile; fileRef = A82AA8E72C5CE3982839018C /* MarsAdvancedPages.swift */; };
 /* End PBXBuildFile section */
@@ -25,8 +27,10 @@
 		508E24BA7B9E99B2BF6C6FBC /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		5D1D613ED2D68B7085315F92 /* MarsAutoVolume.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarsAutoVolume.swift; sourceTree = "<group>"; };
 		725C62DEB3D97DFA0724E986 /* MarsControlApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarsControlApp.swift; sourceTree = "<group>"; };
+		9AAFBA39414EE94209E5ACFD /* MarsBLESignal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarsBLESignal.swift; sourceTree = "<group>"; };
 		A2D5439CB2B3A6FA87ABF10E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A82AA8E72C5CE3982839018C /* MarsAdvancedPages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarsAdvancedPages.swift; sourceTree = "<group>"; };
+		ADD7A3CF93403C2A449388CE /* MarsBLESignalPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarsBLESignalPage.swift; sourceTree = "<group>"; };
 		B1B5577C11088A9033B1DCE0 /* MarsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarsController.swift; sourceTree = "<group>"; };
 		D57C96C4E352D29E2805437A /* MarsFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarsFeatures.swift; sourceTree = "<group>"; };
 		D64865C4C01085054D52228E /* MarsControl.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MarsControl.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -59,6 +63,8 @@
 				A82AA8E72C5CE3982839018C /* MarsAdvancedPages.swift */,
 				5D1D613ED2D68B7085315F92 /* MarsAutoVolume.swift */,
 				EE5FB7DB5557DE4143E2870B /* MarsAutoVolumePage.swift */,
+				9AAFBA39414EE94209E5ACFD /* MarsBLESignal.swift */,
+				ADD7A3CF93403C2A449388CE /* MarsBLESignalPage.swift */,
 				725C62DEB3D97DFA0724E986 /* MarsControlApp.swift */,
 				B1B5577C11088A9033B1DCE0 /* MarsController.swift */,
 				D57C96C4E352D29E2805437A /* MarsFeatures.swift */,
@@ -150,6 +156,8 @@
 				F57BA5C6A8024697A7ABF3FD /* MarsAdvancedPages.swift in Sources */,
 				62103C99B836B8B83D76A67D /* MarsAutoVolume.swift in Sources */,
 				D0B16C68036A223DDFEB43F3 /* MarsAutoVolumePage.swift in Sources */,
+				49F7ADE7456D351CA0D2EE73 /* MarsBLESignal.swift in Sources */,
+				EBDF2618FBF4E5C546F2E139 /* MarsBLESignalPage.swift in Sources */,
 				ED9C18B83D026612EB901E30 /* MarsControlApp.swift in Sources */,
 				47629607E9628A5A5396DBD1 /* MarsController.swift in Sources */,
 				59F40124792CB88D42D3C78C /* MarsFeatures.swift in Sources */,

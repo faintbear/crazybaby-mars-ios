@@ -54,6 +54,14 @@ Protocol and algorithm checks pass, but this feature has not yet been verified o
 
 The app distinguishes received responses from valid samples. A response of `00 00` is shown as a reported value of 0 and keeps automatic volume disabled; it is not a payload-length error. “信号检测详情” shows the latest payload and allows manual export of up to 12 recent signal responses, stored locally without device names or identifiers. Nothing is uploaded automatically. Whether zero depends on the audio connection or the BLE control path is still under investigation.
 
+### Read-only iPhone BLE signal test in 0.5.2
+
+“BLE 信号测试” uses iPhone CoreBluetooth RSSI, separately from the original speaker-returned `0x17` signal. It never feeds either the volume algorithm or the automatic-volume enable condition. Starting this test stops automatic volume.
+
+Keep the app in the foreground, start a new test, and label approximately ten seconds each as Near, Far, and Pocket. The screen shows the raw value, a rolling five-point median, a recent-signal curve, and raw-sample summaries for each label. Body occlusion and walls can change the signal; values are not distances in meters.
+
+Sampling is roughly once per second, with one outstanding read at a time. A timeout stops the test and requires reconnecting before a new attempt. Disconnecting or leaving the foreground also stops sampling. Up to 180 recent samples stay in memory and a local report without device identifiers; export is manual, with no automatic upload. Starting a new test clears the previous session.
+
 ## New in 0.4.0: experimental controls
 
 Rebuilt from the Android 3.0.11 control behavior. These additions have passed local protocol checks and compilation, but have not yet been verified on a physical Mars speaker:

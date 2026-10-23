@@ -51,6 +51,16 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         (lastProximitySample.map { Date().timeIntervalSince($0) < 6 } ?? false) &&
         (value(4).map { (1...16).contains($0) } ?? false)
     }
+    @Published private(set) var bleSignalRunning = false
+    @Published private(set) var bleSignalAwaitingResponse = false
+    @Published private(set) var bleSignalRequiresReconnect = false
+    @Published private(set) var bleSignalTrace = MarsBLESignalTrace()
+    @Published private(set) var bleSignalStatus = "仅测量 iPhone 侧 BLE 信号，不会调节音量"
+    private var bleSignalTimer: Timer?
+    private var bleSignalTimeout: Timer?
+    var bleSignalReportURL: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("mars-ble-signal.json")
+    }
     @Published var lastConfirmed = "尚未读取"
     @Published private(set) var displayName = UserDefaults.standard.string(forKey: "marsDisplayName") ?? "Mars Speaker"
     @Published var feedback: MarsFeedback?
@@ -181,10 +191,14 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
     }
     func setAppActive(_ active: Bool) {
         appActive = active
-        if !active { stopAutoVolume("已离开前台，自动音量与检测均已停止") }
+        if !active {
+            stopAutoVolume("已离开前台，自动音量与检测均已停止")
+            stopBLESignalTest("已离开前台，BLE 只读测试停止")
+        }
     }
     func startProximityMonitoring() {
         guard appActive, connected, !busy else { return }
+        stopBLESignalTest("切换为原厂信号检测，BLE 测试停止")
         stopAutoVolume("开始只读信号检测")
         proximityRSSI = nil; proximitySamples = 0; proximitySuggestion = nil
         proximityRaw = "等待音箱返回"; lastProximitySample = nil
@@ -250,7 +264,65 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         guard let target = MarsProximitySignal.boundedTarget(suggestion, current: current, maximum: autoVolumeMaximum), target != current else { return }
         enqueue(4, payload: [UInt8(target)], automatic: true)
     }
+    func startBLESignalTest() {
+        guard appActive, connected, !busy, !bleSignalAwaitingResponse, !bleSignalRequiresReconnect else { return }
+        stopAutoVolume("已切换为 iPhone BLE 只读测试，自动音量保持关闭")
+        bleSignalTrace = MarsBLESignalTrace()
+        bleSignalRunning = true
+        bleSignalStatus = "只读测试中，每秒采样；请标记位置并保持约 10 秒"
+        saveBLESignalTrace()
+        bleSignalTimer?.invalidate()
+        bleSignalTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.pollBLESignal() }
+        pollBLESignal()
+    }
+    func stopBLESignalTest(_ reason: String = "BLE 只读测试已停止，记录保留在本机") {
+        bleSignalTimer?.invalidate(); bleSignalTimer = nil
+        bleSignalRunning = false; bleSignalStatus = reason
+        // Leave the single outstanding request tracked until its response or timeout.
+    }
+    func markBLESignalPosition(_ position: MarsSignalPosition) {
+        bleSignalTrace.position = position
+    }
+    private func pollBLESignal() {
+        guard appActive, connected, bleSignalRunning, let device else { return }
+        guard !bleSignalAwaitingResponse else { return }
+        bleSignalAwaitingResponse = true
+        device.readRSSI()
+        bleSignalTimeout?.invalidate()
+        bleSignalTimeout = Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { [weak self] _ in
+            guard let self, self.bleSignalAwaitingResponse else { return }
+            self.bleSignalAwaitingResponse = false
+            self.bleSignalRequiresReconnect = true
+            self.stopBLESignalTest("BLE 信号读取超时，请断开重连后再测；未自动重试")
+        }
+    }
+    func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
+        guard peripheral.identifier == device?.identifier, bleSignalAwaitingResponse else { return }
+        bleSignalTimeout?.invalidate(); bleSignalAwaitingResponse = false
+        guard bleSignalRunning, appActive, connected else { return }
+        guard error == nil else {
+            stopBLESignalTest("BLE 信号读取失败：" + (error?.localizedDescription ?? "未知错误"))
+            return
+        }
+        guard bleSignalTrace.record(RSSI.intValue) else {
+            stopBLESignalTest("iPhone 返回不可用的信号值，测试停止")
+            return
+        }
+        saveBLESignalTrace()
+    }
+    private func saveBLESignalTrace() {
+        let samples: [[String: Any]] = bleSignalTrace.samples.map {
+            ["seconds": $0.elapsed, "raw": $0.raw, "median5": $0.median, "position": $0.position.rawValue]
+        }
+        let report: [String: Any] = ["version": 1, "source": "iphone-corebluetooth", "readOnly": true, "samples": samples]
+        if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: bleSignalReportURL, options: .atomic)
+        }
+    }
     private func clearAdvancedState() {
+        stopBLESignalTest("设备连接已重置，BLE 只读测试停止")
+        bleSignalTimeout?.invalidate(); bleSignalAwaitingResponse = false; bleSignalRequiresReconnect = false
+
         stopAutoVolume("设备状态已重置，请重新检测并手动开启自动音量")
         proximityRSSI = nil; proximitySamples = 0; proximitySuggestion = nil; proximityRaw = "尚未读取"
         proximityReportedRSSI = nil; proximityResponseCount = 0; proximityLastFrame = "尚未收到信号响应"

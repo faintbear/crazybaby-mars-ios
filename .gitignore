@@ -10,3 +10,4 @@ build/
 mars-control.json
 
 mars-proximity.json
+mars-ble-signal.json

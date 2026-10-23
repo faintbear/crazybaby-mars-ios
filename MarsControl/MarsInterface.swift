@@ -17,7 +17,7 @@ enum MarsTheme {
 }
 
 enum MarsPage: String, CaseIterable, Identifiable {
-    case levitation, pattern, brightness, eq, volume, name, autoVolume, settings, connections, information
+    case levitation, pattern, brightness, eq, volume, name, autoVolume, bleSignal, settings, connections, information
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -28,6 +28,7 @@ enum MarsPage: String, CaseIterable, Identifiable {
         case .volume: return "音量"
         case .name: return "设备名称"
         case .autoVolume: return "自动音量"
+        case .bleSignal: return "BLE 信号测试"
         case .settings: return "提示音与待机"
         case .connections: return "连接设备"
         case .information: return "设备信息"
@@ -42,6 +43,7 @@ enum MarsPage: String, CaseIterable, Identifiable {
         case .volume: return "speaker.wave.2"
         case .name: return "pencil.line"
         case .autoVolume: return "dot.radiowaves.left.and.right"
+        case .bleSignal: return "waveform.path"
         case .settings: return "switch.2"
         case .connections: return "iphone.and.arrow.forward"
         case .information: return "info.circle"
@@ -244,6 +246,7 @@ struct MarsDevicePage: View {
         case .volume: return controller.value(4).map { $0 == 0 ? "静音" : "\($0) / 16" } ?? "—"
         case .name: return ""
         case .autoVolume: return controller.autoVolumeEnabled ? "运行中" : "实验功能"
+        case .bleSignal: return controller.bleSignalRunning ? "只读采样中" : "只读"
         case .settings: return "实验功能"
         case .connections: return "只读"
         case .information: return controller.mcuVersion?.label ?? "—"
@@ -266,6 +269,7 @@ struct MarsDetailPage: View {
                 case .eq: EQPage(controller: controller)
                 case .name: NamePage(controller: controller)
                 case .autoVolume: AutoVolumePage(controller: controller)
+                case .bleSignal: BLESignalTestPage(controller: controller)
                 case .settings: AdvancedSettingsPage(controller: controller)
                 case .connections: ConnectionListPage(controller: controller)
                 case .information: DeviceInformationPage(controller: controller)
