@@ -19,7 +19,7 @@ enum MarsWire {
         bytes += [checksum, 0xEA]
         return Data(bytes)
     }
-    static func query(_ command: UInt8, sequence: UInt8) -> Data { frame(sequence: sequence, body: [1, command]) }
+    static func query(_ command: UInt8, arguments: [UInt8] = [], sequence: UInt8) -> Data { frame(sequence: sequence, body: [1, command] + arguments) }
     static func set(_ command: UInt8, value: [UInt8], sequence: UInt8) -> Data { frame(sequence: sequence, body: [6, command] + value) }
     static func ack(_ sequence: UInt8) -> Data { frame(sequence: sequence, body: [], kind: 0) }
     static func escapedName(_ name: String) -> [UInt8] {

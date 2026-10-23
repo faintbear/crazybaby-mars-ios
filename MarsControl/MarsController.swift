@@ -6,6 +6,12 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
     @Published var busy = false
     @Published var status = "连接 Mars 后读取实际状态"
     @Published var values: [UInt8: [UInt8]] = [:]
+    @Published private(set) var connectedEntries: [UInt8: MarsConnectionEntry] = [:]
+    @Published private(set) var historyEntries: [UInt8: MarsConnectionEntry] = [:]
+    @Published private(set) var queryIssues: [UInt8: String] = [:]
+    var mcuVersion: MarsMCUVersion? { MarsMCUVersion(values[8]) }
+    var promptSounds: MarsPromptSounds? { MarsPromptSounds(values[26]) }
+    var canSetAdvancedControls: Bool { connected && !busy && mcuVersion?.supportsAdvancedControls == true }
     @Published var lastConfirmed = "尚未读取"
     @Published private(set) var displayName = UserDefaults.standard.string(forKey: "marsDisplayName") ?? "Mars Speaker"
     @Published var feedback: MarsFeedback?
@@ -28,6 +34,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         let payload: [UInt8]?
         let sequence: UInt8
         let expected: [UInt8]?
+        let queryArguments: [UInt8]
     }
     override init() { super.init() }
     func connect() {
@@ -57,7 +64,8 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
             if [.poweredOff, .unauthorized, .unsupported].contains(central.state) { wantsConnection = false; device = nil }
             timer?.invalidate(); connectTimer?.invalidate()
             status = central.state == .unauthorized ? "请在系统设置允许本 App 使用蓝牙" : "等待蓝牙开启"
-            }
+            clearAdvancedState()
+        }
     }
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {
         let name = advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? peripheral.name ?? ""
@@ -78,6 +86,7 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         central?.stopScan()
         if let device { central?.cancelPeripheralConnection(device) }
         device = nil
+        clearAdvancedState()
         status = "已断开连接"
     }
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
@@ -117,7 +126,8 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
     func refresh() {
         guard connected, !busy else { return }
         values.removeAll()
-        for command: UInt8 in [3, 4, 13, 24, 25] { enqueue(command, payload: nil) }
+        clearAdvancedState()
+        for command: UInt8 in [3, 4, 13, 24, 25, 8] { enqueue(command, payload: nil) }
         sendNext()
     }
     func set(_ command: UInt8, _ value: UInt8) {
@@ -127,6 +137,49 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         guard range?.contains(value) == true else { status = "参数超出已还原范围"; return }
         feedback = nil
         enqueue(command, payload: [value]); sendNext()
+    }
+    private func clearAdvancedState() {
+        for command: UInt8 in [8, 18, 19, 20, 21, 26, 27] { values.removeValue(forKey: command) }
+        connectedEntries.removeAll(); historyEntries.removeAll(); queryIssues.removeAll()
+    }
+    func readAdvancedSettings() {
+        guard connected, !busy else { return }
+        for command: UInt8 in [8, 26, 27] {
+            values.removeValue(forKey: command); queryIssues.removeValue(forKey: command)
+            enqueue(command, payload: nil)
+        }
+        sendNext()
+    }
+    func readConnectionLists() {
+        guard connected, !busy else { return }
+        connectedEntries.removeAll(); historyEntries.removeAll()
+        for command: UInt8 in [18, 19, 20, 21] {
+            values.removeValue(forKey: command); queryIssues.removeValue(forKey: command)
+        }
+        enqueue(18, payload: nil); enqueue(20, payload: nil); sendNext()
+    }
+    func setPromptSound(levitation: Bool? = nil, power: Bool? = nil) {
+        guard canSetAdvancedControls, var sounds = promptSounds else { return }
+        if let levitation { sounds.levitation = levitation }
+        if let power { sounds.power = power }
+        guard sounds.encoded != values[26]?.first else { return }
+        feedback = nil; enqueue(26, payload: [sounds.encoded]); sendNext()
+    }
+    func setStandby(_ enabled: Bool) {
+        guard canSetAdvancedControls, let current = values[27], current.count == 1, current[0] <= 1 else { return }
+        let target: UInt8 = enabled ? 1 : 0
+        guard current != [target] else { return }
+        feedback = nil; enqueue(27, payload: [target]); sendNext()
+    }
+    private func validResponse(_ command: UInt8, _ payload: [UInt8]) -> Bool {
+        switch command {
+        case 8: return MarsMCUVersion(payload) != nil
+        case 26: return MarsPromptSounds(payload) != nil
+        case 27: return payload.count == 1 && payload[0] <= 1
+        case 18, 20: return payload.count == 1
+        case 19, 21: return MarsConnectionEntry(payload) != nil
+        default: return true
+        }
     }
     func rename(_ name: String) {
         guard connected, !busy else { return }
@@ -150,8 +203,8 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
     private func nextSequence() -> UInt8 {
         let result = sequence; sequence = sequence == 127 ? 1 : sequence + 1; return result
     }
-    private func enqueue(_ command: UInt8, payload: [UInt8]?, expected: [UInt8]? = nil, front: Bool = false) {
-        let request = Request(command: command, payload: payload, sequence: nextSequence(), expected: expected)
+    private func enqueue(_ command: UInt8, payload: [UInt8]?, expected: [UInt8]? = nil, front: Bool = false, queryArguments: [UInt8] = []) {
+        let request = Request(command: command, payload: payload, sequence: nextSequence(), expected: expected, queryArguments: queryArguments)
         if front { queue.insert(request, at: 0) } else { queue.append(request) }
     }
     private func sendNext() {
@@ -162,10 +215,11 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
             return
         }
         let request = queue.removeFirst()
-        let packet = request.payload.map { MarsWire.set(request.command, value: $0, sequence: request.sequence) } ?? MarsWire.query(request.command, sequence: request.sequence)
+        let packet = request.payload.map { MarsWire.set(request.command, value: $0, sequence: request.sequence) } ?? MarsWire.query(request.command, arguments: request.queryArguments, sequence: request.sequence)
         guard packet.count <= device.maximumWriteValueLength(for: .withResponse) else {
             status = "名称数据超过本次连接可写长度，未发送"; queue.removeAll(); busy = false; return
         }
+        if request.command != 19 && request.command != 21 { queryIssues.removeValue(forKey: request.command) }
         pending = request; busy = true; activeCommand = request.command
         status = request.payload == nil ? "正在查询状态…" : "已发送设置，等待音箱确认…"
         if request.command == 7, packet.count > 20 {
@@ -181,10 +235,12 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
         timer = Timer.scheduledTimer(withTimeInterval: 4, repeats: false) { [weak self] _ in
             guard let self, let pending = self.pending else { return }
             self.pending = nil
+            self.queryIssues[pending.command] = "设备未返回有效状态"
             if pending.payload != nil || pending.expected != nil {
+                if pending.command == 26 || pending.command == 27 { self.values.removeValue(forKey: pending.command) }
                 self.queue.removeAll(); self.busy = false
                 self.activeCommand = nil
-                self.status = "设置结果未确认，请刷新状态；未自动重试"
+                self.status = pending.command == 27 ? "待机可能使连接中断，结果未确认；未重发" : "设置结果未确认，请刷新状态；未自动重试"
                 self.feedback = MarsFeedback(message: "暂未确认结果，请刷新设备状态", style: .notice)
             } else {
                 self.status = "部分状态未返回"
@@ -219,11 +275,21 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
             guard seenResponses.insert(fingerprint).inserted || awaitingThisCommand else { continue }
             if seenResponses.count > 128 { seenResponses.removeAll(); seenResponses.insert(fingerprint) }
             guard frame.operation == 2, let command = frame.command else { continue }
-            values[command] = frame.payload
+            let payload = [8, 18, 19, 20, 21, 26, 27].contains(Int(command)) ? MarsWire.unescape(frame.payload) : frame.payload
+            guard validResponse(command, payload) else {
+                queryIssues[command] = "设备返回格式无法识别"
+                continue
+            }
+            if command == 19 || command == 21 {
+                guard let request = pending, request.command == command, request.payload == nil,
+                      payload.first == request.queryArguments.first else { continue }
+            }
+            values[command] = payload
+            if command != 19 && command != 21 { queryIssues.removeValue(forKey: command) }
             lastConfirmed = Date().formatted(date: .omitted, time: .standard)
             if let request = pending, request.command == command, request.payload == nil {
                 timer?.invalidate(); pending = nil
-                let actual = command == 7 ? MarsWire.unescape(frame.payload) : frame.payload
+                let actual = command == 7 ? MarsWire.unescape(frame.payload) : payload
                 if let expected = request.expected {
                     let liftMatch = command == 13 && ((expected == [1] && [1,3,4].contains(Int(actual.first ?? 255))) || (expected == [0] && [0,2,5].contains(Int(actual.first ?? 255))))
                     let matched = actual == expected || liftMatch
@@ -244,6 +310,18 @@ final class MarsController: NSObject, ObservableObject, CBCentralManagerDelegate
                         feedback = MarsFeedback(message: matched ? "设置已更新" : "设备返回值与设置不同，请刷新核对", style: matched ? .success : .notice)
                     }
                 } else { status = "已收到音箱实际状态" }
+                if command == 18 || command == 20, let count = payload.first {
+                    let entryCommand: UInt8 = command == 18 ? 19 : 21
+                    // A bounded list prevents a malformed count from flooding the speaker.
+                    if count <= 16 {
+                        for index in (0..<Int(count)).reversed() {
+                            enqueue(entryCommand, payload: nil, front: true, queryArguments: [UInt8(index)])
+                        }
+                    } else { queryIssues[command] = "列表超过 16 项，未自动读取" }
+                } else if let entry = MarsConnectionEntry(payload) {
+                    if command == 19 { connectedEntries[entry.index] = entry }
+                    if command == 21 { historyEntries[entry.index] = entry }
+                }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in self?.sendNext() }
             }
         }

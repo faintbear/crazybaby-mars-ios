@@ -17,7 +17,7 @@ enum MarsTheme {
 }
 
 enum MarsPage: String, CaseIterable, Identifiable {
-    case levitation, pattern, brightness, eq, volume, name
+    case levitation, pattern, brightness, eq, volume, name, settings, connections, information
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -27,6 +27,9 @@ enum MarsPage: String, CaseIterable, Identifiable {
         case .eq: return "均衡器"
         case .volume: return "音量"
         case .name: return "设备名称"
+        case .settings: return "提示音与待机"
+        case .connections: return "连接设备"
+        case .information: return "设备信息"
         }
     }
     var symbol: String {
@@ -37,6 +40,9 @@ enum MarsPage: String, CaseIterable, Identifiable {
         case .eq: return "slider.vertical.3"
         case .volume: return "speaker.wave.2"
         case .name: return "pencil.line"
+        case .settings: return "switch.2"
+        case .connections: return "iphone.and.arrow.forward"
+        case .information: return "info.circle"
         }
     }
 }
@@ -183,7 +189,7 @@ struct MarsDevicePage: View {
                 HStack(spacing: 10) {
                     Text("设备控制").font(.caption).tracking(1.5)
                     Rectangle().fill(MarsTheme.line).frame(height: 1)
-                    Text("06").font(.caption.monospacedDigit())
+                    Text(String(format: "%02d", MarsPage.allCases.count)).font(.caption.monospacedDigit())
                 }.foregroundStyle(MarsTheme.muted).padding(.horizontal, 25).padding(.bottom, 13)
 
                 VStack(spacing: 0) {
@@ -201,7 +207,7 @@ struct MarsDevicePage: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("feature.\(page.rawValue)")
-                        if page != .name { Rectangle().fill(MarsTheme.line).frame(height: 0.5).padding(.leading, 66) }
+                        if page != MarsPage.allCases.last { Rectangle().fill(MarsTheme.line).frame(height: 0.5).padding(.leading, 66) }
                     }
                 }
                 .background(MarsTheme.panel.opacity(0.38))
@@ -232,9 +238,12 @@ struct MarsDevicePage: View {
         case .levitation: return liftDescription(controller.value(13))
         case .pattern: return controller.value(24).map { "模式 \($0 + 1)" } ?? "—"
         case .brightness: return controller.value(25).map { "\(Int(Double($0) / 15 * 100))%" } ?? "—"
-        case .eq: return controller.value(3).map { "预设 \($0)" } ?? "—"
+        case .eq: return controller.value(3).map(MarsEQ.name) ?? "—"
         case .volume: return controller.value(4).map { $0 == 0 ? "静音" : "\($0) / 16" } ?? "—"
         case .name: return ""
+        case .settings: return "实验功能"
+        case .connections: return "只读"
+        case .information: return controller.mcuVersion?.label ?? "—"
         }
     }
 }
@@ -253,6 +262,9 @@ struct MarsDetailPage: View {
                 case .volume: LevelPage(controller: controller, command: 4)
                 case .eq: EQPage(controller: controller)
                 case .name: NamePage(controller: controller)
+                case .settings: AdvancedSettingsPage(controller: controller)
+                case .connections: ConnectionListPage(controller: controller)
+                case .information: DeviceInformationPage(controller: controller)
                 }
             }.padding(.horizontal, 25).padding(.top, 28).padding(.bottom, 35)
         }
@@ -387,7 +399,7 @@ struct EQPage: View {
             }.frame(height: 175).accessibilityHidden(true)
             VStack(spacing: 0) {
                 ForEach(0..<5) { index in
-                    SelectionRow(title: "预设 \(index)", subtitle: "EQ 0\(index)", selected: controller.value(3) == index) {
+                    SelectionRow(title: MarsEQ.name(index), subtitle: MarsEQ.subtitle(index), selected: controller.value(3) == index) {
                         controller.set(3, UInt8(index))
                     }.disabled(!enabled || controller.value(3) == index)
                     if index < 4 { Rectangle().fill(MarsTheme.line).frame(height: 0.5).padding(.leading, 20) }

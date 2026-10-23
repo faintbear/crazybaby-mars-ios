@@ -28,12 +28,26 @@ Verification was performed with one Mars speaker and one iPhone. It does not cov
 | Light modes | Four mode selections (0–3) | Switched modes, read back values, and observed visual changes; individual effects have not all been named |
 | Light brightness | Levels 0–15 with a percentage display | Read back settings and observed the lowest brightness and brightness changes |
 | Volume control | Range 0–16 and current-level readout | Wrote and read back a low volume setting; confirmed the restored value after reconnecting. Loudness has not been measured at every level |
-| EQ presets | Five preset selections (0–4) | Switched 2 → 0 → 2 and confirmed status readback; not every preset has been individually auditioned |
+| EQ presets | CrazyEQ, Bass, Indoors, Outdoors; legacy preset 4 | Switched 2 → 0 → 2 and confirmed status readback; not every preset has been individually auditioned |
 | Device name | Up to 17 UTF-8 bytes, with manual verification after restarting | Successfully changed the name and received user confirmation after a restart; automatic name readback can be truncated |
 
 The dark interface includes a device list, feature pages, connection status, operation feedback, and playback help. Settings are disabled while disconnected or while an operation is in progress. Timed-out settings are not automatically resent.
 
 Physical verification above concerns the control capabilities. Interface interactions such as dragging have not all undergone automated testing. Editing custom EQ bands is not implemented.
+
+## New in 0.4.0: experimental controls
+
+Rebuilt from the Android 3.0.11 control behavior. These additions have passed local protocol checks and compilation, but have not yet been verified on a physical Mars speaker:
+
+- Device information: read the two-byte MCU version; no firmware updates.
+- Prompt sounds: separate power and levitation sound switches. Changing one preserves the other setting. A valid current response and MCU revision greater than 25 are required before writing.
+- Standby: explicit standby/wake commands with a confirmation before standby. This is not an automatic sleep timer. Standby can disconnect Bluetooth; waking through the app is only possible if the control connection remains available. Otherwise, use the speaker’s power button.
+- Connection lists: read currently connected and historical device names, up to 16 entries per list. No disconnect, removal, or audio-source switching commands are sent.
+- Named EQ presets: CrazyEQ (0), Bass (1), Indoors (2), Outdoors (3). Preset 4 remains a legacy option, not a custom band editor.
+
+Open “提示音与待机” or “连接设备” and press the read button first. Unsupported or missing responses leave advanced settings unavailable. Controls use the Android version condition as a compatibility guard, not as proof of hardware support. Connection-list refresh clears old entries; incomplete results are shown with their returned total and any read error.
+
+Automatic distance-based volume, RGB color controls, Wi-Fi grouping, and power-saving controls for other speaker models are not included.
 
 ## Usage
 
